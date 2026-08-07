@@ -1,7 +1,8 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite the paper below."
 title: "sam-mosaic (Remote SAMsing)"
-version: 2.0.0
+version: 2.0.1
+doi: "10.5281/zenodo.21841054"
 license: MIT
 repository-code: "https://github.com/osmarluiz/sam-mosaic"
 authors:
