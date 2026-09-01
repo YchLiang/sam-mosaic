@@ -173,6 +173,11 @@ Examples:
         choices=["auto", "ram", "disk"],
         help="Mosaic storage mode: 'auto' (default), 'ram' (faster), or 'disk' (less memory)"
     )
+    output_group.add_argument(
+        "--roi-mask",
+        type=str,
+        help="Path to shapefile (.shp) defining region of interest. Only pixels within the ROI will be segmented."
+    )
 
     # Other options
     parser.add_argument(
@@ -256,6 +261,8 @@ Examples:
         params["simplify_tolerance"] = args.simplify_tolerance
     if args.streaming_mode is not None:
         params["streaming_mode"] = args.streaming_mode
+    if args.roi_mask is not None:
+        params["roi_mask"] = args.roi_mask
 
     # Run segmentation
     try:

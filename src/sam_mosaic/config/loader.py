@@ -113,6 +113,7 @@ def _dict_to_config(data: dict) -> Config:
             simplify_tolerance=output_data.get("simplify_tolerance", 1.0),
         ),
         sam_checkpoint=data.get("sam_checkpoint"),
+        roi_mask=data.get("roi_mask"),
     )
 
 
@@ -161,4 +162,5 @@ def _config_to_dict(config: Config) -> dict:
             "simplify_tolerance": config.output.simplify_tolerance,
         },
         "sam_checkpoint": config.sam_checkpoint,
+        "roi_mask": config.roi_mask,
     }

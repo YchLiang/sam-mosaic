@@ -38,7 +38,10 @@ class TileInfo:
         data: Tile image data (H, W, C) or (H, W).
         crop_x: X offset to crop useful area from padded tile.
         crop_y: Y offset to crop useful area from padded tile.
-        tile_size: Size of useful area (after cropping).
+        tile_size: Size of useful area (after cropping). For edge tiles
+            this is min(useful_w, useful_h).
+        useful_w: Width of the useful area in pixels.
+        useful_h: Height of the useful area in pixels.
         row: Tile row index.
         col: Tile column index.
     """
@@ -46,8 +49,10 @@ class TileInfo:
     crop_x: int
     crop_y: int
     tile_size: int
-    row: int
-    col: int
+    useful_w: int = 0  # defaults to tile_size for backward compat
+    useful_h: int = 0
+    row: int = 0
+    col: int = 0
 
 
 def get_image_metadata(path: Union[str, Path]) -> ImageMetadata:
@@ -116,9 +121,11 @@ def load_tile(
 
     Uses adaptive stride for border tiles to avoid reading outside
     image bounds while maintaining discontinuity positions.
+    Edge tiles (last row/column) may have a smaller useful area
+    than tile_size when the image dimensions are not evenly divisible.
 
     The crop_x and crop_y values indicate where to extract the
-    useful tile_size x tile_size area from the padded tile:
+    useful area from the padded tile:
     - First row/col: crop_x/y = 0 (padding is on right/bottom)
     - Middle row/col: crop_x/y = padding (padding on both sides)
     - Last row/col: crop_x/y = 2*padding (padding is on left/top)
@@ -134,6 +141,8 @@ def load_tile(
     Returns:
         TileInfo with tile data and crop coordinates.
     """
+    import math
+
     with rasterio.open(path) as src:
         if bands is None:
             bands = tuple(range(1, src.count + 1))
@@ -141,52 +150,40 @@ def load_tile(
         img_width = src.width
         img_height = src.height
 
-        # Calculate number of tiles
-        n_cols = img_width // tile_size
-        n_rows = img_height // tile_size
+        # Calculate number of tiles (ceiling division for full coverage)
+        n_cols = math.ceil(img_width / tile_size)
+        n_rows = math.ceil(img_height / tile_size)
 
-        # Base tile position
+        # Actual useful size for this tile (may be smaller at edges)
+        useful_w = min(tile_size, img_width - col * tile_size)
+        useful_h = min(tile_size, img_height - row * tile_size)
+
+        # Base tile position (top-left corner of useful area)
         tile_x = col * tile_size
         tile_y = row * tile_size
 
-        # Padded tile size
-        pad_size = tile_size + 2 * padding
+        # Determine how much padding is available on each side
+        pad_left = min(padding, tile_x)
+        pad_right = min(padding, img_width - tile_x - useful_w)
+        pad_top = min(padding, tile_y)
+        pad_bottom = min(padding, img_height - tile_y - useful_h)
 
-        # Adaptive stride: adjust for border tiles
-        # X axis
-        if col == 0:
-            # First column: no left padding
-            read_x = 0
-            crop_x = 0
-        elif col == n_cols - 1:
-            # Last column: no right padding
-            read_x = img_width - pad_size
-            crop_x = 2 * padding
-        else:
-            # Middle columns: padding on both sides
-            read_x = tile_x - padding
-            crop_x = padding
+        # Compute read window (clamped to image bounds)
+        read_x = tile_x - pad_left
+        read_y = tile_y - pad_top
+        read_w = useful_w + pad_left + pad_right
+        read_h = useful_h + pad_top + pad_bottom
 
-        # Y axis
-        if row == 0:
-            # First row: no top padding
-            read_y = 0
-            crop_y = 0
-        elif row == n_rows - 1:
-            # Last row: no bottom padding
-            read_y = img_height - pad_size
-            crop_y = 2 * padding
-        else:
-            # Middle rows: padding on both sides
-            read_y = tile_y - padding
-            crop_y = padding
+        # Crop offset to extract useful area from the read window
+        crop_x = pad_left
+        crop_y = pad_top
 
         # Read the tile
         window = Window(
             col_off=read_x,
             row_off=read_y,
-            width=pad_size,
-            height=pad_size
+            width=read_w,
+            height=read_h
         )
 
         data = src.read(bands, window=window)
@@ -199,7 +196,9 @@ def load_tile(
             data=data,
             crop_x=crop_x,
             crop_y=crop_y,
-            tile_size=tile_size,
+            tile_size=min(useful_w, useful_h),
+            useful_w=useful_w,
+            useful_h=useful_h,
             row=row,
             col=col,
         )

@@ -1,6 +1,6 @@
 """Multi-pass segmentation logic."""
 
-from typing import Tuple, List
+from typing import Optional, Tuple, List
 import numpy as np
 from scipy import ndimage
 
@@ -16,7 +16,8 @@ def run_multipass_segmentation(
     seg_config: SegmentationConfig,
     threshold_config: ThresholdConfig,
     start_label: int = 1,
-    min_region_area: int = 100
+    min_region_area: int = 100,
+    roi_mask: Optional[np.ndarray] = None
 ) -> Tuple[np.ndarray, np.ndarray, dict]:
     """Run multi-pass segmentation on a single tile/image.
 
@@ -106,15 +107,28 @@ def run_multipass_segmentation(
         if len(points) == 0:
             break
 
-        # Apply black mask to image if enabled
-        # Skip on pass 0: combined_mask is all zeros, so no effect (avoids unnecessary copy)
+        # Build the effective mask to black out before SAM inference.
+        # ROI mask blacks out non-ROI pixels (applied on all passes).
+        # Black mask blacks out already-segmented pixels (applied on pass 1+).
+        # When both are active, they are OR-combined into a single mask.
+        effective_mask = None
+
+        if roi_mask is not None:
+            # roi_mask has 255=inside ROI, 0=outside; invert so True=to-black-out
+            effective_mask = (roi_mask == 0)
+
         if seg_config.use_black_mask and pass_idx > 0:
-            # Reuse buffer to avoid repeated memory allocation
+            if effective_mask is not None:
+                effective_mask = effective_mask | (combined_mask > 0)
+            else:
+                effective_mask = combined_mask > 0
+
+        if effective_mask is not None:
             if working_image is None:
                 working_image = image.copy()
             else:
                 np.copyto(working_image, image)
-            current_image = apply_black_mask(working_image, combined_mask, copy=False)
+            current_image = apply_black_mask(working_image, effective_mask, copy=False)
         else:
             current_image = image
 

@@ -1,7 +1,7 @@
 """Tile processing utilities."""
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 import numpy as np
 
 from sam_mosaic.config import Config
@@ -36,7 +36,8 @@ def process_tile(
     predictor: SAMPredictor,
     tile_info: TileInfo,
     config: Config,
-    start_label: int = 1
+    start_label: int = 1,
+    roi_mask: Optional[np.ndarray] = None
 ) -> TileResult:
     """Process a single tile with multi-pass segmentation.
 
@@ -61,16 +62,18 @@ def process_tile(
         seg_config=config.segmentation,
         threshold_config=config.threshold,
         start_label=start_label,
-        min_region_area=config.merge.min_mask_area
+        min_region_area=config.merge.min_mask_area,
+        roi_mask=roi_mask
     )
 
     # Crop to useful area
     crop_x = tile_info.crop_x
     crop_y = tile_info.crop_y
-    tile_size = tile_info.tile_size
+    useful_w = tile_info.useful_w if tile_info.useful_w > 0 else tile_info.tile_size
+    useful_h = tile_info.useful_h if tile_info.useful_h > 0 else tile_info.tile_size
 
-    useful_labels = labels[crop_y:crop_y + tile_size, crop_x:crop_x + tile_size]
-    useful_mask = combined_mask[crop_y:crop_y + tile_size, crop_x:crop_x + tile_size]
+    useful_labels = labels[crop_y:crop_y + useful_h, crop_x:crop_x + useful_w]
+    useful_mask = combined_mask[crop_y:crop_y + useful_h, crop_x:crop_x + useful_w]
 
     # Calculate coverage for useful area
     coverage = useful_mask.sum() / useful_mask.size * 100
@@ -96,6 +99,9 @@ def calculate_grid_dimensions(
 ) -> Tuple[int, int, int]:
     """Calculate tile grid dimensions.
 
+    Uses ceiling division so that edge tiles (smaller than tile_size)
+    are included, ensuring full image coverage.
+
     Args:
         image_width: Image width in pixels.
         image_height: Image height in pixels.
@@ -104,8 +110,9 @@ def calculate_grid_dimensions(
     Returns:
         Tuple of (n_cols, n_rows, total_tiles).
     """
-    n_cols = image_width // tile_size
-    n_rows = image_height // tile_size
+    import math
+    n_cols = math.ceil(image_width / tile_size)
+    n_rows = math.ceil(image_height / tile_size)
     total_tiles = n_cols * n_rows
 
     return n_cols, n_rows, total_tiles

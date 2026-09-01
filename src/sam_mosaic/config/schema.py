@@ -1,6 +1,7 @@
 """Configuration dataclasses for SAM-Mosaic."""
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Optional
 
 
@@ -124,7 +125,9 @@ class OutputConfig:
         save_shapefile: Whether to save vectorized shapefile.
         save_geopackage: Whether to save GeoPackage.
         save_stats: Whether to save detailed stats JSON.
-        simplify_tolerance: Polygon simplification tolerance in map units (0 = no simplification).
+        simplify_tolerance: Polygon simplification tolerance in map units.
+            Default 0 (no simplification, guarantees topologically clean coverage).
+            Any value > 0 may introduce minor overlaps between adjacent polygons.
         streaming_mode: Mosaic storage mode - "auto", "ram", or "disk".
             - "auto": Uses disk streaming for large images (> 30% of available RAM).
             - "ram": Always keep mosaic in memory (faster for small images).
@@ -134,7 +137,7 @@ class OutputConfig:
     save_shapefile: bool = True
     save_geopackage: bool = False
     save_stats: bool = True
-    simplify_tolerance: float = 1.0
+    simplify_tolerance: float = 0.0
     streaming_mode: str = "auto"
 
 
@@ -149,6 +152,7 @@ class Config:
         merge: Post-processing merge settings.
         output: Output file settings.
         sam_checkpoint: Path to SAM2 checkpoint file.
+        roi_mask: Path to SHP file defining region of interest (None = entire image).
     """
     tile: TileConfig = field(default_factory=TileConfig)
     threshold: ThresholdConfig = field(default_factory=ThresholdConfig)
@@ -156,6 +160,7 @@ class Config:
     merge: MergeConfig = field(default_factory=MergeConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     sam_checkpoint: Optional[str] = None
+    roi_mask: Optional[str] = None
 
     def validate(self) -> None:
         """Validate configuration values.
@@ -185,6 +190,8 @@ class Config:
             raise ValueError(f"merge.merge_strategy must be 'best_match', 'mutual_best', 'min_contact', or 'none', got {self.merge.merge_strategy}")
         if self.output.streaming_mode not in ("auto", "ram", "disk"):
             raise ValueError(f"output.streaming_mode must be 'auto', 'ram', or 'disk', got {self.output.streaming_mode}")
+        if self.roi_mask is not None and not Path(self.roi_mask).exists():
+            raise ValueError(f"roi_mask file not found: {self.roi_mask}")
 
     @classmethod
     def with_overrides(cls, base: "Config", **overrides) -> "Config":
@@ -229,6 +236,7 @@ class Config:
             "simplify_tolerance": ("output", "simplify_tolerance"),
             "streaming_mode": ("output", "streaming_mode"),
             "sam_checkpoint": (None, "sam_checkpoint"),
+            "roi_mask": (None, "roi_mask"),
         }
 
         for key, value in overrides.items():

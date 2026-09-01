@@ -17,6 +17,7 @@ def segment_image(
     output_dir: Union[str, Path],
     config: Optional[Union[Config, str, Path]] = None,
     checkpoint: Optional[str] = None,
+    roi_mask: Optional[str] = None,
     verbose: bool = True
 ) -> SegmentationResult:
     """Segment a large image using SAM-Mosaic.
@@ -29,6 +30,7 @@ def segment_image(
         output_dir: Directory for output files.
         config: Configuration object, path to YAML file, or None for defaults.
         checkpoint: Path to SAM2 checkpoint (overrides config).
+        roi_mask: Path to SHP file for ROI masking (overrides config).
         verbose: Whether to print progress messages.
 
     Returns:
@@ -54,6 +56,10 @@ def segment_image(
     # Override checkpoint if provided
     if checkpoint is not None:
         cfg.sam_checkpoint = checkpoint
+
+    # Override ROI mask if provided
+    if roi_mask is not None:
+        cfg.roi_mask = roi_mask
 
     # Run pipeline
     pipeline = Pipeline(cfg)
@@ -93,8 +99,9 @@ def segment_with_params(
     save_labels: bool = True,
     save_shapefile: bool = True,
     save_geopackage: bool = False,
-    simplify_tolerance: float = 1.0,
+    simplify_tolerance: float = 0.0,
     streaming_mode: str = "auto",
+    roi_mask: Optional[str] = None,
     verbose: bool = True
 ) -> SegmentationResult:
     """Segment with direct parameter control.
@@ -133,7 +140,11 @@ def segment_with_params(
         save_labels: Save label raster (default True).
         save_shapefile: Save shapefile (default True).
         save_geopackage: Save geopackage (default False).
-        simplify_tolerance: Polygon simplification in map units (default 1.0). Use 0 for no simplification.
+        simplify_tolerance: Polygon simplification in map units (default 0, no simplification).
+            Any value > 0 may introduce minor overlaps between adjacent polygons.
+
+        roi_mask: Path to SHP file defining region of interest (default None = entire image).
+            Only pixels within the ROI will be segmented.
 
         verbose: Print progress (default True).
 
@@ -198,6 +209,7 @@ def segment_with_params(
             streaming_mode=streaming_mode,
         ),
         sam_checkpoint=checkpoint,
+        roi_mask=roi_mask,
     )
 
     # Run pipeline

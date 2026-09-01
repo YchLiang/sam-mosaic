@@ -96,11 +96,15 @@ class InMemoryMosaic(MosaicWriter):
         self._width = width
 
     def write_tile(self, labels: np.ndarray, row: int, col: int) -> None:
-        """Write tile directly to the numpy array."""
+        """Write tile directly to the numpy array.
+
+        Supports non-standard tile sizes at image edges.
+        """
+        th, tw = labels.shape[:2]
         y_start = row * self._tile_size
         x_start = col * self._tile_size
-        self._data[y_start:y_start + self._tile_size,
-                   x_start:x_start + self._tile_size] = labels
+        self._data[y_start:y_start + th,
+                   x_start:x_start + tw] = labels
 
     def read(self) -> np.ndarray:
         """Return reference to the mosaic array."""
@@ -193,15 +197,19 @@ class DiskMosaic(MosaicWriter):
             self._dataset.write(zeros, 1, window=window)
 
     def write_tile(self, labels: np.ndarray, row: int, col: int) -> None:
-        """Write tile to the GeoTIFF using windowed write."""
+        """Write tile to the GeoTIFF using windowed write.
+
+        Supports non-standard tile sizes at image edges.
+        """
         import rasterio
 
+        th, tw = labels.shape[:2]
         y_start = row * self._tile_size
         x_start = col * self._tile_size
 
         window = rasterio.windows.Window(
             x_start, y_start,
-            self._tile_size, self._tile_size
+            tw, th
         )
 
         self._dataset.write(labels.astype(np.uint32), 1, window=window)

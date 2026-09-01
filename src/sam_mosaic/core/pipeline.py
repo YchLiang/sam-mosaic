@@ -96,6 +96,21 @@ class Pipeline:
         # Get image metadata
         self._metadata = get_image_metadata(input_path)
 
+        # Rasterize ROI mask if provided
+        full_roi_mask = None
+        if self.config.roi_mask is not None:
+            from sam_mosaic.io.roi import rasterize_roi_mask
+            full_roi_mask = rasterize_roi_mask(
+                self.config.roi_mask,
+                height=self._metadata.height,
+                width=self._metadata.width,
+                crs=self._metadata.crs,
+                transform=self._metadata.transform,
+            )
+            roi_coverage = (full_roi_mask > 0).sum() / full_roi_mask.size * 100
+            if verbose:
+                print(f"  ROI mask: {Path(self.config.roi_mask).name} ({roi_coverage:.1f}% of image)")
+
         # Calculate grid
         tile_size = self.config.tile.size
         n_cols, n_rows, total_tiles = calculate_grid_dimensions(
@@ -143,8 +158,10 @@ class Pipeline:
             print(f"[DEBUG] VRAM after model load: {_get_vram()} MB", flush=True)
 
         # Initialize mosaic writer
-        mosaic_height = n_rows * tile_size
-        mosaic_width = n_cols * tile_size
+        # Use original image dimensions so edge tiles (smaller than tile_size)
+        # are correctly placed and the output matches the input extent.
+        mosaic_height = self._metadata.height
+        mosaic_width = self._metadata.width
         streaming_mode = self.config.output.streaming_mode
 
         if debug_mode:
@@ -209,13 +226,33 @@ class Pipeline:
                         print(f"  Tile {tile_idx:3d}/{total_tiles} [{row},{col}] | SKIP (empty)")
                     continue
 
+                # Crop ROI mask for this tile
+                roi_mask_crop = None
+                if full_roi_mask is not None:
+                    from sam_mosaic.io.roi import crop_roi_mask
+                    roi_mask_crop = crop_roi_mask(
+                        full_roi_mask,
+                        row=row,
+                        col=col,
+                        tile_size=tile_size,
+                        padding=self.config.tile.padding,
+                        img_width=self._metadata.width,
+                        img_height=self._metadata.height,
+                    )
+                    # Skip tiles entirely outside the ROI
+                    if roi_mask_crop.sum() == 0:
+                        if verbose:
+                            print(f"  Tile {tile_idx:3d}/{total_tiles} [{row},{col}] | SKIP (outside ROI)")
+                        continue
+
                 # Process tile (with retry on SAM2 internal errors)
                 try:
                     result = process_tile(
                         self._predictor,
                         tile_info,
                         self.config,
-                        start_label=label_offset + 1
+                        start_label=label_offset + 1,
+                        roi_mask=roi_mask_crop
                     )
                 except (TypeError, RuntimeError) as e:
                     # SAM2 can corrupt internal state after many iterations.
@@ -230,7 +267,8 @@ class Pipeline:
                         self._predictor,
                         tile_info,
                         self.config,
-                        start_label=label_offset + 1
+                        start_label=label_offset + 1,
+                        roi_mask=roi_mask_crop
                     )
 
                 # Write tile to mosaic

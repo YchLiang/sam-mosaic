@@ -79,3 +79,22 @@ experiments/
 # Temporary files
 *.tmp
 *.temp
+
+# claude
+settings.json
+
+# shapefile-related files
+*.shp
+*.shx
+*.dbf
+*.cpg
+*.shp.xml
+*.sbn
+*.sbx
+*.prj
+
+# Geotiff files
+*.tif
+*.tiff
+*.tif.ovr
+*.tif.aux.xml
