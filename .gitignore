@@ -98,3 +98,6 @@ settings.json
 *.tiff
 *.tif.ovr
 *.tif.aux.xml
+
+#test
+test/
