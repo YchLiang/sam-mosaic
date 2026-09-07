@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 from sam_mosaic.config import Config
-from sam_mosaic.sam import SAMPredictor
+from sam_mosaic.sam import create_predictor
 from sam_mosaic.io import get_image_metadata, load_tile, save_labels, ImageMetadata
 from sam_mosaic.merge import merge_at_discontinuities, merge_enclosed_and_remove_small
 from sam_mosaic.core.tile import process_tile, calculate_grid_dimensions
@@ -64,7 +64,7 @@ class Pipeline:
             config: Configuration object.
         """
         self.config = config
-        self._predictor: Optional[SAMPredictor] = None
+        self._predictor = None  # SAMPredictor (SAM2) or SAM3Predictor
         self._metadata: Optional[ImageMetadata] = None
 
     def run(
@@ -139,8 +139,11 @@ class Pipeline:
             else:
                 print("Loading SAM2 model...", end=" ", flush=True)
 
-        # Initialize predictor
-        self._predictor = SAMPredictor(self.config.sam_checkpoint)
+        # Initialize predictor (backend auto-detected from checkpoint name)
+        self._predictor = create_predictor(
+            self.config.sam_checkpoint,
+            backend=getattr(self.config, "sam_backend", "auto"),
+        )
         self._predictor.load_model(debug=debug_mode)
 
         if verbose and not debug_mode:
@@ -311,8 +314,16 @@ class Pipeline:
                 # Scale reset frequency with tile count: every 50 for 500+ tiles,
                 # every 100 otherwise. Small tile_size jobs generate more passes
                 # per tile, accumulating more GPU memory fragmentation.
-                reset_interval = 10 if total_tiles >= 500 else (25 if total_tiles >= 100 else 50)
-                if tile_idx % reset_interval == 0:
+                # NOTE: the SAM3 backend is exempt -- its 3.4GB-parameter model
+                # makes each reload itself the dominant fragmentation source
+                # (observed on a 1722-tile job: VRAM saturated -> WDDM system-
+                # memory fallback -> ~10x slowdown). Per-tile reset_image +
+                # the allocator's expandable segments keep it healthy instead.
+                if self._predictor.backend == "sam3":
+                    reset_interval = None
+                else:
+                    reset_interval = 10 if total_tiles >= 500 else (25 if total_tiles >= 100 else 50)
+                if reset_interval is not None and tile_idx % reset_interval == 0:
                     self._predictor.unload_model()
                     gc.collect()
                     torch.cuda.empty_cache()

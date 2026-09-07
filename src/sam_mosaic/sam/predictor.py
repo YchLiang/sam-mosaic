@@ -21,6 +21,8 @@ class SAMPredictor:
         model: Loaded SAM2 model.
     """
 
+    backend = "sam2"
+
     # SAM2 config file mapping based on checkpoint name
     SAM2_CONFIGS = {
         "large": "configs/sam2.1/sam2.1_hiera_l.yaml",

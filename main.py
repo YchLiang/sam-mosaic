@@ -13,7 +13,7 @@ if __name__ == "__main__":
         result = segment_with_params(
             input_path=imput_path,
             output_dir=output_dir,
-            tile_size= 1000,
+            tile_size= 500,
             checkpoint="./checkpoints/sam2.1_hiera_large.pt",
             roi_mask=None,  # 可选：提供 SHP 文件路径以限制分割区域
             # === 速度优化 ===

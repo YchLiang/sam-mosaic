@@ -90,6 +90,110 @@ That's it! The tool will generate:
 
 ---
 
+## Using SAM 3
+
+sam-mosaic supports both SAM2 and **SAM3** (Meta, Nov 2025) checkpoints. The
+backend is selected automatically from the checkpoint filename (anything
+containing `sam3` -> SAM3), or forced explicitly via `sam_backend=` /
+`--sam-backend {auto,sam2,sam3}`.
+
+SAM3 cannot be loaded through `sam2.build_sam2` (different architecture: a
+DETR-style detector + a SAM2-style tracker sharing one ViT encoder, 848M
+params). The SAM3 backend instead drives SAM3's interactive point-prompt
+predictor through the official `sam3` package, reimplementing the automatic
+point-grid loop (multimask output, IoU + stability filtering, box NMS) with
+the same formulas as the SAM2 path.
+
+### Requirements
+
+> **Note**: SAM3 needs a **separate environment** from SAM2. SAM3 requires
+> Python >= 3.12, PyTorch >= 2.7 and CUDA >= 12.6, while the SAM2 stack is
+> typically older.
+
+```bash
+# 1. New conda environment
+conda create -n sam3 python=3.12
+conda activate sam3
+
+# 2. PyTorch with CUDA
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+
+# 3. The sam3 package (no PyPI release; install from the official repo)
+git clone https://github.com/facebookresearch/sam3.git
+pip install -e ./sam3
+
+# 4. sam-mosaic + its geo dependencies in the same env
+pip install -e .
+
+# 5. Checkpoint - the official weights are gated on HuggingFace:
+#    request access at https://huggingface.co/facebook/sam3, then either
+#      hf auth login          # ...and pass checkpoint="hf" / use sam3.pt path, or
+#      download sam3.pt manually into ./checkpoints/
+```
+
+### Usage
+
+```python
+from sam_mosaic import segment_with_params
+
+result = segment_with_params(
+    input_path="image.tif",
+    output_dir="output/",
+    checkpoint="./checkpoints/sam3.pt",   # backend auto-detected -> SAM3
+    tile_size=500,
+    max_passes=50,
+    target_coverage=95.0,
+    points_per_side=48,
+    threshold_step=0.02,
+)
+
+# Or force the backend explicitly:
+result = segment_with_params(..., checkpoint="hf", sam_backend="sam3")
+```
+
+CLI: `sam-mosaic input.tif output/ --checkpoint ./checkpoints/sam3.pt --sam-backend auto`
+
+Validation: `test/code/test_sam3_backend.py` checks the integration end to
+end on one tile (part 1 runs anywhere; parts 2-3 need the `sam3` env and
+weights). Results go to `test/results/`.
+
+### SAM3 backend notes
+
+- Same multi-pass pipeline, point strategies (kmeans / dense_grid), black
+  masking and tile merging as the SAM2 backend.
+- **Threshold calibration**: SAM3's IoU head scores lower than SAM2's (few
+  masks exceed 0.90 on aerial imagery). With the SAM2 default start of 0.93
+  the first pass barely admits anything; `iou_start=0.80` /
+  `stability_start=0.80` (with the usual `0.60` end) works well.
+- **Nodata handling**: SAM3 refuses to segment black nodata / mosaic-gap
+  areas, so reported coverage can be lower than SAM2's even though the real
+  content is fully segmented (SAM2 tends to cut nodata into fake segments).
+  Measured on the test tile: SAM3 63.6% overall but ~93% of actual content,
+  24 passes, 39 segments, 15.7s -- vs SAM2 97.0% incl. nodata, 14 passes,
+  25 segments, 31.4s (~2x slower).
+- The tracker runs under bf16 autocast internally (official behavior), so
+  the SAM3 path gets tensor-core acceleration by default.
+- Not supported on the SAM3 backend (yet): `crop_n_layers > 0` (a SAM2-AMG
+  sub-crop feature; it raises a clear error).
+- Encoder features are cached per image content, so multi-pass iterations
+  that black-mask nothing skip the expensive ViT forward automatically.
+- **Long-run VRAM stability** (matters for 1000+-tile jobs): the periodic
+  full model reload the pipeline uses against fragmentation is disabled for
+  SAM3 (its 3.4 GB-parameter model makes each reload the fragmentation
+  source; the observed failure mode is VRAM saturation -> WDDM system-memory
+  fallback -> ~10x slowdown). `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`
+  is recommended, and the backend also empties the CUDA cache when the
+  allocator reservation passes 85% of VRAM.
+- **Windows setup extras** (already applied on this machine's `sam3` env):
+  `setuptools<81` (sam3 still imports `pkg_resources`, removed in
+  setuptools 81), plus `einops`, `pycocotools`, `psutil` (imported
+  unconditionally by sam3 despite being listed as optional extras). The
+  `triton` dependency does not exist on Windows; the local sam3 clone at
+  `Desktop/sam3` is patched to import `edt_triton` lazily (used only by
+  training-time correction sampling, not by this pipeline).
+
+---
+
 ## Usage
 
 ### Command Line (CLI)

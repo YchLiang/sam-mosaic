@@ -151,7 +151,10 @@ class Config:
         segmentation: Segmentation behavior settings.
         merge: Post-processing merge settings.
         output: Output file settings.
-        sam_checkpoint: Path to SAM2 checkpoint file.
+        sam_checkpoint: Path to SAM checkpoint file (SAM2 sam2.1_hiera_*.pt,
+            or SAM3 sam3*.pt which requires the `sam3` package).
+        sam_backend: Which SAM generation to run: "auto" (detect from the
+            checkpoint filename: "sam3" -> SAM3, else SAM2), "sam2" or "sam3".
         roi_mask: Path to SHP file defining region of interest (None = entire image).
     """
     tile: TileConfig = field(default_factory=TileConfig)
@@ -160,6 +163,7 @@ class Config:
     merge: MergeConfig = field(default_factory=MergeConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     sam_checkpoint: Optional[str] = None
+    sam_backend: str = "auto"
     roi_mask: Optional[str] = None
 
     def validate(self) -> None:
@@ -190,6 +194,8 @@ class Config:
             raise ValueError(f"merge.merge_strategy must be 'best_match', 'mutual_best', 'min_contact', or 'none', got {self.merge.merge_strategy}")
         if self.output.streaming_mode not in ("auto", "ram", "disk"):
             raise ValueError(f"output.streaming_mode must be 'auto', 'ram', or 'disk', got {self.output.streaming_mode}")
+        if self.sam_backend not in ("auto", "sam2", "sam3"):
+            raise ValueError(f"sam_backend must be 'auto', 'sam2' or 'sam3', got {self.sam_backend}")
         if self.roi_mask is not None and not Path(self.roi_mask).exists():
             raise ValueError(f"roi_mask file not found: {self.roi_mask}")
 
@@ -236,6 +242,7 @@ class Config:
             "simplify_tolerance": ("output", "simplify_tolerance"),
             "streaming_mode": ("output", "streaming_mode"),
             "sam_checkpoint": (None, "sam_checkpoint"),
+            "sam_backend": (None, "sam_backend"),
             "roi_mask": (None, "roi_mask"),
         }
 

@@ -54,7 +54,14 @@ Examples:
     parser.add_argument(
         "--checkpoint",
         type=str,
-        help="Path to SAM2 checkpoint file"
+        help="Path to SAM checkpoint file (SAM2 sam2.1_hiera_*.pt or SAM3 sam3*.pt)"
+    )
+    parser.add_argument(
+        "--sam-backend",
+        type=str,
+        choices=["auto", "sam2", "sam3"],
+        help="SAM generation to run: 'auto' (default, detect from checkpoint "
+             "name), 'sam2' or 'sam3' (requires the `sam3` package, Python >= 3.12)"
     )
 
     # Tile parameters
@@ -261,6 +268,8 @@ Examples:
         params["simplify_tolerance"] = args.simplify_tolerance
     if args.streaming_mode is not None:
         params["streaming_mode"] = args.streaming_mode
+    if args.sam_backend is not None:
+        params["sam_backend"] = args.sam_backend
     if args.roi_mask is not None:
         params["roi_mask"] = args.roi_mask
 

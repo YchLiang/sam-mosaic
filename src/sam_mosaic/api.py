@@ -29,7 +29,9 @@ def segment_image(
         input_path: Path to input image (GeoTIFF or similar).
         output_dir: Directory for output files.
         config: Configuration object, path to YAML file, or None for defaults.
-        checkpoint: Path to SAM2 checkpoint (overrides config).
+        checkpoint: Path to SAM checkpoint (overrides config). SAM2
+            (sam2.1_hiera_*.pt) and SAM3 (sam3*.pt, needs the `sam3` package)
+            are both supported; the backend is auto-detected from the name.
         roi_mask: Path to SHP file for ROI masking (overrides config).
         verbose: Whether to print progress messages.
 
@@ -101,6 +103,8 @@ def segment_with_params(
     save_geopackage: bool = False,
     simplify_tolerance: float = 0.0,
     streaming_mode: str = "auto",
+    # Model parameters
+    sam_backend: str = "auto",
     roi_mask: Optional[str] = None,
     verbose: bool = True
 ) -> SegmentationResult:
@@ -142,6 +146,12 @@ def segment_with_params(
         save_geopackage: Save geopackage (default False).
         simplify_tolerance: Polygon simplification in map units (default 0, no simplification).
             Any value > 0 may introduce minor overlaps between adjacent polygons.
+
+        sam_backend: Which SAM generation to run (default "auto"):
+            "auto" detects from the checkpoint filename ("sam3" -> SAM3,
+            otherwise SAM2), or force "sam2"/"sam3". SAM3 requires the
+            `sam3` package (Python >= 3.12, torch >= 2.7; see README) and
+            does not support crop_n_layers > 0.
 
         roi_mask: Path to SHP file defining region of interest (default None = entire image).
             Only pixels within the ROI will be segmented.
@@ -209,6 +219,7 @@ def segment_with_params(
             streaming_mode=streaming_mode,
         ),
         sam_checkpoint=checkpoint,
+        sam_backend=sam_backend,
         roi_mask=roi_mask,
     )
 
