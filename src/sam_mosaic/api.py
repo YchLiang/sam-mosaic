@@ -147,11 +147,13 @@ def segment_with_params(
         simplify_tolerance: Polygon simplification in map units (default 0, no simplification).
             Any value > 0 may introduce minor overlaps between adjacent polygons.
 
-        sam_backend: Which SAM generation to run (default "auto"):
+        sam_backend: Which SAM to run (default "auto"):
             "auto" detects from the checkpoint filename ("sam3" -> SAM3,
-            otherwise SAM2), or force "sam2"/"sam3". SAM3 requires the
-            `sam3` package (Python >= 3.12, torch >= 2.7; see README) and
-            does not support crop_n_layers > 0.
+            "mobile" -> MobileSAM, otherwise SAM2), or force "sam2",
+            "sam3" or "mobilesam". SAM3 requires the `sam3` package
+            (Python >= 3.12, torch >= 2.7; see README) and does not
+            support crop_n_layers > 0; MobileSAM requires the
+            `mobile_sam` package plus `timm`.
 
         roi_mask: Path to SHP file defining region of interest (default None = entire image).
             Only pixels within the ROI will be segmented.

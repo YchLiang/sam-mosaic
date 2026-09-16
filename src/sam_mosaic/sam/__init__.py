@@ -8,6 +8,7 @@ from sam_mosaic.sam.predictor import SAMPredictor
 __all__ = [
     "SAMPredictor",
     "SAM3Predictor",
+    "MobileSAMPredictor",
     "create_predictor",
     "Mask",
     "apply_black_mask",
@@ -20,19 +21,25 @@ def detect_backend(checkpoint: str, backend: str = "auto") -> str:
 
     Args:
         checkpoint: Checkpoint path (or "hf" for SAM3 auto-download).
-        backend: "auto", "sam2" or "sam3". "auto" picks "sam3" when the
-            checkpoint filename contains "sam3" (e.g. sam3.pt,
-            sam3.1_multiplex.pt), otherwise "sam2".
+        backend: "auto", "sam2", "sam3" or "mobilesam". "auto" picks
+            "sam3" when the checkpoint filename contains "sam3",
+            "mobilesam" when it contains "mobile" (e.g. mobile_sam.pt),
+            otherwise "sam2".
 
     Returns:
-        Resolved backend name ("sam2" or "sam3").
+        Resolved backend name ("sam2", "sam3" or "mobilesam").
     """
-    if backend not in ("auto", "sam2", "sam3"):
-        raise ValueError(f"sam_backend must be 'auto', 'sam2' or 'sam3', got {backend!r}")
+    if backend not in ("auto", "sam2", "sam3", "mobilesam"):
+        raise ValueError(
+            f"sam_backend must be 'auto', 'sam2', 'sam3' or 'mobilesam', got {backend!r}")
     if backend != "auto":
         return backend
     name = Path(str(checkpoint)).stem.lower()
-    return "sam3" if "sam3" in name else "sam2"
+    if "sam3" in name:
+        return "sam3"
+    if "mobile" in name:
+        return "mobilesam"
+    return "sam2"
 
 
 def create_predictor(
@@ -45,32 +52,45 @@ def create_predictor(
 
     SAM2 checkpoints (sam2.1_hiera_*.pt) load through the original
     ``SAMPredictor``; SAM3 checkpoints (sam3*.pt) go through the ``sam3``
-    package backend. The two expose the same interface
+    package backend; MobileSAM checkpoints (mobile_sam.pt) go through the
+    ``mobile_sam`` package backend. All expose the same interface
     (``load_model``/``set_image``/``predict_points_batched``/...), so the
     pipeline treats them interchangeably.
 
     Args:
         checkpoint: Checkpoint path, or "hf" for SAM3 HuggingFace download.
-        model_type: SAM2 model type (ignored for SAM3).
-        backend: "auto" (detect from checkpoint name), "sam2" or "sam3".
+        model_type: SAM2 model type / MobileSAM registry key (vit_t).
+        backend: "auto" (detect from checkpoint name), "sam2", "sam3" or
+            "mobilesam".
         device: Torch device (None = auto).
 
     Returns:
-        SAMPredictor or SAM3Predictor instance (model not yet loaded).
+        SAMPredictor, SAM3Predictor or MobileSAMPredictor instance
+        (model not yet loaded).
     """
     resolved = detect_backend(checkpoint, backend)
     if resolved == "sam3":
         from sam_mosaic.sam.sam3_backend import SAM3Predictor
 
         return SAM3Predictor(checkpoint, device=device)
+    if resolved == "mobilesam":
+        from sam_mosaic.sam.mobilesam_backend import MobileSAMPredictor
+
+        return MobileSAMPredictor(checkpoint, device=device,
+                                  model_type="vit_t" if model_type == "large" else model_type)
     return SAMPredictor(checkpoint, device=device, model_type=model_type)
 
 
 def __getattr__(name):
-    """PEP 562: lazily expose SAM3Predictor (its module imports nothing
-    heavy, but keep the sam3-free import path of this package intact)."""
+    """PEP 562: lazily expose SAM3Predictor / MobileSAMPredictor (their
+    modules import nothing heavy, but keep the sam-free import path of this
+    package intact)."""
     if name == "SAM3Predictor":
         from sam_mosaic.sam.sam3_backend import SAM3Predictor
 
         return SAM3Predictor
+    if name == "MobileSAMPredictor":
+        from sam_mosaic.sam.mobilesam_backend import MobileSAMPredictor
+
+        return MobileSAMPredictor
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

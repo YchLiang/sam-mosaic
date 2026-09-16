@@ -194,6 +194,44 @@ weights). Results go to `test/results/`.
 
 ---
 
+## Using MobileSAM
+
+sam-mosaic also supports **MobileSAM** checkpoints (`mobile_sam.pt`, ~40 MB):
+the same prompt encoder + mask decoder as SAM, with the ViT image encoder
+swapped for a ~5M-parameter TinyViT. On this workload it behaves like a
+faster SAM2 (same threshold schedule `0.93 -> 0.60` applies) at roughly half
+the wall time and 40% less VRAM, with similar segment character.
+
+Backend selection is automatic (`mobile` in the checkpoint filename) or
+force with `sam_backend="mobilesam"` / `--sam-backend mobilesam`.
+
+```bash
+# 1. The mobile_sam package (original-SAM API; no dependency conflicts)
+git clone https://github.com/ChaoningZhang/MobileSAM.git
+pip install -e ./MobileSAM
+pip install timm          # TinyViT dependency
+
+# 2. Checkpoint (~40 MB)
+cp MobileSAM/weights/mobile_sam.pt ./checkpoints/
+```
+
+```python
+result = segment_with_params(
+    input_path="image.tif", output_dir="output/",
+    checkpoint="./checkpoints/mobile_sam.pt",   # auto-detected -> MobileSAM
+    tile_size=500, max_passes=50, target_coverage=95.0,
+    points_per_side=48, threshold_step=0.02,
+)
+```
+
+Measured on the 4 test crops (same params as the SAM2/SAM3 comparison, see
+`test/results/compare_sam2_vs_sam3/COMPARISON.md`): avg 67.8 segments /
+98.2% coverage / 84 s per 1300px crop vs SAM2-large 64.8 / 98.7% / 138 s and
+SAM3 89.0 / 96.7% / 92 s. Peak VRAM ~1.9 GB (vs 3.7 GB SAM2 / 7.2 GB SAM3)
+-- the lightest backend, suitable for 8 GB GPUs.
+
+---
+
 ## Usage
 
 ### Command Line (CLI)

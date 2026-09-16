@@ -54,14 +54,16 @@ Examples:
     parser.add_argument(
         "--checkpoint",
         type=str,
-        help="Path to SAM checkpoint file (SAM2 sam2.1_hiera_*.pt or SAM3 sam3*.pt)"
+        help="Path to SAM checkpoint file (SAM2 sam2.1_hiera_*.pt, SAM3 "
+             "sam3*.pt, or MobileSAM mobile_sam.pt)"
     )
     parser.add_argument(
         "--sam-backend",
         type=str,
-        choices=["auto", "sam2", "sam3"],
-        help="SAM generation to run: 'auto' (default, detect from checkpoint "
-             "name), 'sam2' or 'sam3' (requires the `sam3` package, Python >= 3.12)"
+        choices=["auto", "sam2", "sam3", "mobilesam"],
+        help="SAM to run: 'auto' (default, detect from checkpoint name), "
+             "'sam2', 'sam3' (requires the `sam3` package, Python >= 3.12) "
+             "or 'mobilesam' (requires the `mobile_sam` package)"
     )
 
     # Tile parameters
