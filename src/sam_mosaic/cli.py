@@ -158,6 +158,12 @@ Examples:
         type=int,
         help="Minimum region area to keep (default: 100)"
     )
+    merge_group.add_argument(
+        "--fill-holes-max-area",
+        type=int,
+        help="Fill unsegmented holes up to this many pixels with the "
+             "nearest segment (default: 0 = off; try 2000)"
+    )
 
     # Output options
     output_group = parser.add_argument_group("Output options")
@@ -262,6 +268,8 @@ Examples:
         params["min_contact_pixels"] = args.min_contact
     if args.min_area is not None:
         params["min_mask_area"] = args.min_area
+    if args.fill_holes_max_area is not None:
+        params["fill_holes_max_area"] = args.fill_holes_max_area
     if args.no_shapefile:
         params["save_shapefile"] = False
     if args.geopackage:

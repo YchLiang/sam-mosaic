@@ -109,11 +109,17 @@ class MergeConfig:
             Only used when merge_strategy="min_contact".
         min_mask_area: Remove masks smaller than this area.
         merge_enclosed_max_area: Merge enclosed masks up to this size.
+        fill_holes_max_area: Fill unsegmented holes (seam slivers, small
+            voids between masks) up to this many pixels with the nearest
+            segment label. Applied after tile-edge merging; holes larger
+            than this and background touching the image border (nodata)
+            are kept. 0 disables filling.
     """
     merge_strategy: str = "best_match"
     min_contact_pixels: int = 20
     min_mask_area: int = 100
     merge_enclosed_max_area: int = 500
+    fill_holes_max_area: int = 0
 
 
 @dataclass
@@ -194,6 +200,8 @@ class Config:
             raise ValueError(f"segmentation.erosion_iterations must be non-negative, got {self.segmentation.erosion_iterations}")
         if self.merge.merge_strategy not in ("best_match", "mutual_best", "min_contact", "none"):
             raise ValueError(f"merge.merge_strategy must be 'best_match', 'mutual_best', 'min_contact', or 'none', got {self.merge.merge_strategy}")
+        if self.merge.fill_holes_max_area < 0:
+            raise ValueError(f"merge.fill_holes_max_area must be non-negative, got {self.merge.fill_holes_max_area}")
         if self.output.streaming_mode not in ("auto", "ram", "disk"):
             raise ValueError(f"output.streaming_mode must be 'auto', 'ram', or 'disk', got {self.output.streaming_mode}")
         if self.sam_backend not in ("auto", "sam2", "sam3", "mobilesam"):
@@ -238,6 +246,7 @@ class Config:
             "min_contact_pixels": ("merge", "min_contact_pixels"),
             "min_mask_area": ("merge", "min_mask_area"),
             "merge_enclosed_max_area": ("merge", "merge_enclosed_max_area"),
+            "fill_holes_max_area": ("merge", "fill_holes_max_area"),
             "save_labels": ("output", "save_labels"),
             "save_shapefile": ("output", "save_shapefile"),
             "save_geopackage": ("output", "save_geopackage"),

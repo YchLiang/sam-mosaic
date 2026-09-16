@@ -386,6 +386,21 @@ class Pipeline:
                 print(f"  Merge at edges: done ({time.time()-t0:.1f}s) "
                       f"[{merge_stats['labels_merged']} labels merged]", flush=True)
 
+        # Fill small unsegmented holes (seam slivers, small voids between
+        # masks) with the nearest segment label. Border-touching background
+        # (nodata) is never filled.
+        if self.config.merge.fill_holes_max_area > 0:
+            from sam_mosaic.merge import fill_background_holes
+
+            t0 = time.time()
+            before_holes = int((mosaic == 0).sum())
+            mosaic = fill_background_holes(
+                mosaic, max_area=self.config.merge.fill_holes_max_area)
+            if verbose:
+                print(f"  Fill holes <= {self.config.merge.fill_holes_max_area} px: "
+                      f"{before_holes - int((mosaic == 0).sum()):,} px filled "
+                      f"({time.time()-t0:.1f}s)", flush=True)
+
         # Calculate final stats (segment_counts_before already computed above)
         segment_counts = np.bincount(mosaic.ravel())
 

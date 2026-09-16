@@ -4,6 +4,52 @@ import numpy as np
 from scipy import ndimage
 
 
+def fill_background_holes(labels: np.ndarray, max_area: int = 2000) -> np.ndarray:
+    """Fill small unsegmented holes (label 0) with the nearest segment label.
+
+    Unlike ``merge_enclosed_regions`` (which merges small label islands into
+    a surrounding segment and never touches background), this targets the
+    background itself: seam slivers and small voids left between masks.
+
+    Only background components that do NOT touch the image border are
+    filled -- border-touching background is outside-data / nodata and
+    should stay unsegmented. Each hole pixel receives the label of its
+    nearest labeled pixel (distance transform).
+
+    Args:
+        labels: Label array (H, W); 0 = unsegmented.
+        max_area: Fill background components up to this many pixels.
+            0 disables filling.
+
+    Returns:
+        Label array with small holes filled.
+    """
+    if max_area <= 0 or labels.max() == 0:
+        return labels.copy()
+
+    bg = labels == 0
+    labeled_bg, n_bg = ndimage.label(bg)
+    if n_bg == 0:
+        return labels.copy()
+
+    sizes = np.bincount(labeled_bg.ravel(), minlength=n_bg + 1)
+    border_ids = np.unique(np.concatenate([
+        labeled_bg[0, :], labeled_bg[-1, :], labeled_bg[:, 0], labeled_bg[:, -1]
+    ]))
+    fill_ids = np.where(
+        (sizes > 0) & (sizes <= max_area)
+        & ~np.isin(np.arange(n_bg + 1), border_ids[border_ids != 0])
+    )[0]
+    if len(fill_ids) == 0:
+        return labels.copy()
+
+    hole_mask = np.isin(labeled_bg, fill_ids)
+    # indices of the nearest zero of hole_mask = nearest labeled pixel
+    ind = ndimage.distance_transform_edt(hole_mask, return_distances=False,
+                                         return_indices=True)
+    return labels[tuple(ind)]
+
+
 def merge_enclosed_regions(
     labels: np.ndarray,
     max_area: int = 500

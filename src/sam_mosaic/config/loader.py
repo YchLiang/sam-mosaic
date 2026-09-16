@@ -104,6 +104,7 @@ def _dict_to_config(data: dict) -> Config:
             min_contact_pixels=merge_data.get("min_contact_pixels", 20),
             min_mask_area=merge_data.get("min_mask_area", 100),
             merge_enclosed_max_area=merge_data.get("merge_enclosed_max_area", 500),
+            fill_holes_max_area=merge_data.get("fill_holes_max_area", 0),
         ),
         output=OutputConfig(
             save_labels=output_data.get("save_labels", True),
@@ -154,6 +155,7 @@ def _config_to_dict(config: Config) -> dict:
             "min_contact_pixels": config.merge.min_contact_pixels,
             "min_mask_area": config.merge.min_mask_area,
             "merge_enclosed_max_area": config.merge.merge_enclosed_max_area,
+            "fill_holes_max_area": config.merge.fill_holes_max_area,
         },
         "output": {
             "save_labels": config.output.save_labels,

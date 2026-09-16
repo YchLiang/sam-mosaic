@@ -97,6 +97,7 @@ def segment_with_params(
     min_contact_pixels: int = 20,
     min_mask_area: int = 100,
     merge_enclosed_max_area: int = 500,
+    fill_holes_max_area: int = 0,
     # Output parameters
     save_labels: bool = True,
     save_shapefile: bool = True,
@@ -140,6 +141,9 @@ def segment_with_params(
         min_contact_pixels: Minimum contact for merge (default 5).
         min_mask_area: Minimum region area to keep (default 100).
         merge_enclosed_max_area: Max area for enclosed merge (default 500).
+        fill_holes_max_area: Fill unsegmented holes up to this many pixels
+            with the nearest segment (default 0 = off; try 2000 to remove
+            seam slivers and small voids between masks).
 
         save_labels: Save label raster (default True).
         save_shapefile: Save shapefile (default True).
@@ -212,6 +216,7 @@ def segment_with_params(
             min_contact_pixels=min_contact_pixels,
             min_mask_area=min_mask_area,
             merge_enclosed_max_area=merge_enclosed_max_area,
+            fill_holes_max_area=fill_holes_max_area,
         ),
         output=OutputConfig(
             save_labels=save_labels,
